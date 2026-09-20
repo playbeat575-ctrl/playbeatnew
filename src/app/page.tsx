@@ -84,7 +84,14 @@ function Checkout({ user }: { user: AuthUser }) {
   const [orders, setOrders] = useState<OrderRow[]>([])
   const [loadingOrders, setLoadingOrders] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-  const [configStatus, setConfigStatus] = useState<{ outbound: boolean; webhook: boolean; environment: string } | null>(null)
+  const [configStatus, setConfigStatus] = useState<{
+    outbound: boolean
+    webhook: boolean
+    outboundReal: boolean
+    webhookReal: boolean
+    fullyConfigured: boolean
+    environment: string
+  } | null>(null)
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<CheckoutForm>({
     resolver: zodResolver(checkoutSchema),
@@ -105,6 +112,11 @@ function Checkout({ user }: { user: AuthUser }) {
         fetch("/api/rapid/orders", { cache: "no-store" }),
         fetch("/api/rapid/config", { cache: "no-store" }),
       ])
+      // If the session expired mid-session, reload to re-authenticate.
+      if (ordersRes.status === 401) {
+        window.location.reload()
+        return
+      }
       if (ordersRes.ok) {
         const j = await ordersRes.json()
         setOrders(j.orders ?? [])
@@ -113,7 +125,12 @@ function Checkout({ user }: { user: AuthUser }) {
         const j = await cfgRes.json()
         setConfigStatus(j)
       } else {
-        setConfigStatus({ outbound: false, webhook: false, environment: "unknown" })
+        setConfigStatus({
+          outbound: false, webhook: false,
+          outboundReal: false, webhookReal: false,
+          fullyConfigured: false,
+          environment: "unknown",
+        })
       }
     } catch (e) {
       console.error(e)
@@ -158,6 +175,12 @@ function Checkout({ user }: { user: AuthUser }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
       })
+      // Session expired mid-session — reload to re-authenticate.
+      if (res.status === 401) {
+        toast.error("Your session expired. Redirecting to sign-in…")
+        setTimeout(() => window.location.reload(), 1000)
+        return
+      }
       const j = await res.json()
       if (!j.ok) {
         toast.error(j.error ?? "Failed to create checkout session")
@@ -284,10 +307,15 @@ function Checkout({ user }: { user: AuthUser }) {
                 </div>
               </CardContent>
               <CardFooter className="flex flex-col gap-2 items-stretch">
-                <Button type="submit" disabled={submitting || !configStatus?.outbound} className="w-full bg-[#007cdc] hover:bg-[#0068b8]">
+                <Button type="submit" disabled={submitting || !configStatus?.fullyConfigured} className="w-full bg-[#007cdc] hover:bg-[#0068b8]">
                   {submitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CreditCard className="h-4 w-4 mr-2" />}
                   {submitting ? "Creating checkout…" : `Pay ${"(PKR)"} with Rapid`}
                 </Button>
+                {configStatus && !configStatus.fullyConfigured && configStatus.outbound && (
+                  <p className="text-[11px] text-amber-700 text-center">
+                    Rapid credentials are still placeholders — set real values in Vercel to enable live checkout.
+                  </p>
+                )}
                 <p className="text-[11px] text-slate-500 flex items-center gap-1.5 justify-center">
                   <Shield className="h-3 w-3" />
                   You'll be redirected to Rapid's PCI-DSS hosted checkout page.
@@ -296,23 +324,40 @@ function Checkout({ user }: { user: AuthUser }) {
             </form>
           </Card>
 
-          {/* Config status */}
+          {/* Config status — credentials missing entirely */}
           {configStatus && !configStatus.outbound && (
             <Card className="mt-4 border-amber-200 bg-amber-50">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm text-amber-900">Rapid Gateway not configured</CardTitle>
               </CardHeader>
               <CardContent className="text-xs text-amber-800 space-y-1.5">
-                <p>Set these in <code className="bg-amber-100 px-1 rounded">.env</code> to enable live checkout:</p>
+                <p>Set these env vars in Vercel (Project → Settings → Environment Variables):</p>
                 <pre className="bg-amber-100/60 p-2 rounded text-[11px] overflow-x-auto">
-{`RAPID_GATEWAY_ENV=sandbox
-RAPID_GATEWAY_MERCHANT_ID=...
-RAPID_GATEWAY_API_KEY=...
-RAPID_GATEWAY_WEBHOOK_SALT=...
-RAPID_GATEWAY_BASE_URL=https://sandbox-api.rapidgateway.pk
-RAPID_GATEWAY_APP_BASE_URL=http://localhost:3000`}
+{`RAPID_GATEWAY_ENV=live
+RAPID_GATEWAY_MERCHANT_ID=<your real merchant id>
+RAPID_GATEWAY_API_KEY=<your real API key>
+RAPID_GATEWAY_WEBHOOK_SALT=<your real webhook salt>
+RAPID_GATEWAY_BASE_URL=https://api.rapidgateway.pk
+RAPID_GATEWAY_APP_BASE_URL=https://playbeat.digital`}
                 </pre>
-                <p className="pt-1">The form will work end-to-end once these are set and the dev server restarts.</p>
+                <p className="pt-1">Then trigger a redeploy. The button above enables once credentials are real.</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Config status — credentials set but still placeholders */}
+          {configStatus && configStatus.outbound && !configStatus.fullyConfigured && (
+            <Card className="mt-4 border-amber-200 bg-amber-50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-amber-900">Rapid credentials are placeholders</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-amber-800 space-y-1.5">
+                <p>The env vars are set but still contain placeholder values. Replace them with real values from your Rapid portal:</p>
+                <ul className="list-disc pl-4 space-y-0.5">
+                  {!configStatus.outboundReal && <li><code className="bg-amber-100 px-1 rounded">RAPID_GATEWAY_API_KEY</code> and/or <code className="bg-amber-100 px-1 rounded">RAPID_GATEWAY_MERCHANT_ID</code></li>}
+                  {!configStatus.webhookReal && <li><code className="bg-amber-100 px-1 rounded">RAPID_GATEWAY_WEBHOOK_SALT</code></li>}
+                </ul>
+                <p className="pt-1">Get real values at <a href="https://rapidgateway.pk" target="_blank" rel="noreferrer" className="underline">rapidgateway.pk → Developers</a>.</p>
               </CardContent>
             </Card>
           )}

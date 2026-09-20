@@ -2,11 +2,60 @@
 
 import { useState, Suspense } from "react"
 import { signIn } from "next-auth/react"
-import { Loader2, ShieldCheck } from "lucide-react"
+import { Loader2, ShieldCheck, AlertCircle, X } from "lucide-react"
 import { useSearchParams } from "next/navigation"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+
+/** Map NextAuth error codes to friendly messages. */
+const ERROR_MESSAGES: Record<string, { title: string; body: string }> = {
+  Configuration: {
+    title: "Authentication not fully configured",
+    body: "The server is missing Google or Facebook OAuth credentials. A site administrator needs to set GOOGLE_CLIENT_ID/SECRET and FACEBOOK_CLIENT_ID/SECRET in the environment.",
+  },
+  AccessDenied: {
+    title: "Access denied",
+    body: "You denied the sign-in request or your account doesn't have permission.",
+  },
+  Verification: {
+    title: "Sign-in token expired",
+    body: "The sign-in link expired. Please try again.",
+  },
+  OAuthSignin: {
+    title: "Could not start OAuth flow",
+    body: "The provider didn't respond. Please try again in a moment.",
+  },
+  OAuthCallback: {
+    title: "Sign-in failed",
+    body: "The provider rejected the sign-in. This usually means the OAuth client ID or secret is incorrect, or the callback URL isn't registered in the provider's console.",
+  },
+  OAuthCreateAccount: {
+    title: "Could not create account",
+    body: "We couldn't create a local account from your provider identity. If this persists, contact support.",
+  },
+  EmailCreateAccount: {
+    title: "Could not create account",
+    body: "We couldn't create a local account from your email.",
+  },
+  Callback: {
+    title: "Callback error",
+    body: "Something went wrong during the sign-in callback. Please try again.",
+  },
+  google: {
+    title: "Google sign-in failed",
+    body: "Google rejected the sign-in. The site admin may need to register https://playbeat.digital/api/auth/callback/google in the Google Cloud Console.",
+  },
+  facebook: {
+    title: "Facebook sign-in failed",
+    body: "Facebook rejected the sign-in. The site admin may need to register https://playbeat.digital/api/auth/callback/facebook in the Meta for Developers console.",
+  },
+  default: {
+    title: "Sign-in failed",
+    body: "Something went wrong. Please try again, or contact support if the problem persists.",
+  },
+}
 
 function LoginButtons() {
   const searchParams = useSearchParams()
@@ -14,6 +63,9 @@ function LoginButtons() {
     const url = searchParams.get("callbackUrl")
     return url && url.startsWith("/") ? url : "/"
   })()
+  const errorCode = searchParams.get("error")
+  const error = errorCode ? (ERROR_MESSAGES[errorCode] ?? ERROR_MESSAGES.default) : null
+  const [dismissedError, setDismissedError] = useState(false)
   const [loadingProvider, setLoadingProvider] = useState<"google" | "facebook" | null>(null)
 
   function handleGoogle() {
@@ -25,6 +77,8 @@ function LoginButtons() {
     setLoadingProvider("facebook")
     signIn("facebook", { callbackUrl })
   }
+
+  const showError = error && !dismissedError
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
@@ -38,6 +92,22 @@ function LoginButtons() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
+            {showError && (
+              <Alert variant="destructive" className="text-left relative pr-9">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle className="text-sm">{error!.title}</AlertTitle>
+                <AlertDescription className="text-xs mt-1">{error!.body}</AlertDescription>
+                <button
+                  type="button"
+                  onClick={() => setDismissedError(true)}
+                  className="absolute top-2 right-2 text-rose-700/70 hover:text-rose-900"
+                  aria-label="Dismiss"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </Alert>
+            )}
+
             <Button
               type="button"
               variant="outline"

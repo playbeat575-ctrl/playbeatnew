@@ -66,6 +66,43 @@ export function rapidWebhookReady(): boolean {
 }
 
 /**
+ * True when the configured value looks like a REAL secret (not a placeholder
+ * we shipped in .env.example). Used by /api/rapid/config so the UI can show
+ * "Configure your real Rapid credentials" even when the env var is technically
+ * set to the placeholder string.
+ */
+const PLACEHOLDER_VALUES = new Set([
+  "placeholder-replace-with-real-key",
+  "placeholder-replace-with-real-salt",
+  "placeholder-set-in-dashboard",
+  "demo-key-not-real",
+  "test-salt-for-verification",
+  "",
+]);
+
+/** True if the Rapid API key looks like a real key (not a placeholder). */
+export function rapidApiKeyReal(): boolean {
+  return Boolean(rapidConfig.apiKey) && !PLACEHOLDER_VALUES.has(rapidConfig.apiKey);
+}
+
+/** True if the Rapid webhook salt looks like a real salt (not a placeholder). */
+export function rapidWebhookSaltReal(): boolean {
+  return Boolean(rapidConfig.webhookSalt) && !PLACEHOLDER_VALUES.has(rapidConfig.webhookSalt);
+}
+
+/** True if the merchant id is set AND not the demo value "375". */
+export function rapidMerchantIdReal(): boolean {
+  // 375 is the value we shipped in .env.example — if it's still 375, the user
+  // probably hasn't replaced it. (If 375 IS your real merchant id, change this check.)
+  return Boolean(rapidConfig.merchantId) && rapidConfig.merchantId !== "375";
+}
+
+/** True when ALL Rapid credentials look real (not placeholders). */
+export function rapidFullyConfigured(): boolean {
+  return rapidApiKeyReal() && rapidWebhookSaltReal() && rapidMerchantIdReal();
+}
+
+/**
  * Throws if any required env is missing — used by API routes that must fail loud,
  * not by UI code that should render a "configure first" banner.
  */
