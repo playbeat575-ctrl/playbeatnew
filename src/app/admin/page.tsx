@@ -5,6 +5,7 @@ import Link from "next/link"
 import {
   Loader2, RefreshCw, Users, ShoppingBag, DollarSign, TrendingUp,
   AlertCircle, ShieldCheck, ArrowLeft, Clock, CheckCircle2, XCircle,
+  Package, ExternalLink,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -27,6 +28,9 @@ interface AdminStats {
   refundedOrders: number
   revenueMinor: number
   recentSignups: number
+  totalProducts: number
+  activeProducts: number
+  lowStockProducts: number
 }
 
 interface AdminOrder {
@@ -201,7 +205,23 @@ function AdminDashboard({ user }: { user: AuthUser }) {
             <StatCard label="Total Revenue" value={stats ? formatPkr(stats.revenueMinor) : "—"} icon={<DollarSign className="h-4 w-4" />} accent="emerald" />
             <StatCard label="Total Orders" value={stats?.totalOrders ?? "—"} icon={<ShoppingBag className="h-4 w-4" />} accent="blue" />
             <StatCard label="Total Users" value={stats?.totalUsers ?? "—"} icon={<Users className="h-4 w-4" />} accent="purple" />
-            <StatCard label="Signups (7d)" value={stats?.recentSignups ?? "—"} icon={<TrendingUp className="h-4 w-4" />} accent="amber" />
+            <StatCard label="Products" value={stats?.activeProducts ?? "—"} icon={<Package className="h-4 w-4" />} accent="amber" />
+          </div>
+
+          {/* Quick links */}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <a href="/admin/products">
+              <Button variant="outline" size="sm" className="text-xs">
+                <Package className="h-3.5 w-3.5 mr-1.5" />
+                Manage products
+              </Button>
+            </a>
+            <a href="/products" target="_blank" rel="noreferrer">
+              <Button variant="outline" size="sm" className="text-xs">
+                <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                View storefront
+              </Button>
+            </a>
           </div>
         </section>
 

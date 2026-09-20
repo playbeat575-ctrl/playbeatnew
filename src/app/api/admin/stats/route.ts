@@ -28,6 +28,9 @@ export async function GET() {
     refundedOrders,
     revenueAgg,
     recentSignups,
+    totalProducts,
+    activeProducts,
+    lowStockProducts,
   ] = await Promise.all([
     db.user.count(),
     db.order.count(),
@@ -43,6 +46,12 @@ export async function GET() {
     db.user.count({
       where: { createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
     }),
+    db.product.count(),
+    db.product.count({ where: { active: true } }),
+    // Products with stock < 5 (excluding unlimited/null stock)
+    db.product.count({
+      where: { active: true, stock: { not: null, lt: 5 } },
+    }),
   ])
 
   return NextResponse.json({
@@ -56,6 +65,9 @@ export async function GET() {
       refundedOrders,
       revenueMinor: revenueAgg._sum.amountMinor ?? 0,
       recentSignups,
+      totalProducts,
+      activeProducts,
+      lowStockProducts,
     },
   })
 }

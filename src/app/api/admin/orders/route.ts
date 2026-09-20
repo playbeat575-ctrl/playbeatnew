@@ -26,6 +26,7 @@ export async function GET() {
     include: {
       webhookEvents: { take: 3, orderBy: { processedAt: "desc" } },
       user: { select: { id: true, name: true, email: true, image: true } },
+      items: true, // include OrderItem snapshots so admin sees what was purchased
     },
   })
   return NextResponse.json({ ok: true, orders })

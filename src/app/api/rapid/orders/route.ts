@@ -29,7 +29,10 @@ export async function GET() {
     where: user ? { userId: user.id } : undefined,
     orderBy: { createdAt: "desc" },
     take: 50,
-    include: { webhookEvents: { take: 5, orderBy: { processedAt: "desc" } } },
+    include: {
+      webhookEvents: { take: 5, orderBy: { processedAt: "desc" } },
+      items: true, // include OrderItem snapshots so user sees what they bought
+    },
   });
   return NextResponse.json({ ok: true, orders });
 }

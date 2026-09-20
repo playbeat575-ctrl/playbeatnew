@@ -43,7 +43,7 @@ const PUBLIC_API_PATHS = [
 // Known page routes that EXIST in the app. Anything NOT in this list and NOT
 // a public/api/static path is treated as a 404 → middleware lets it through
 // so Next.js can render not-found.tsx instead of redirecting to /login.
-const PUBLIC_PAGE_ROUTES = ["/", "/login", "/signup"]
+const PUBLIC_PAGE_ROUTES = ["/", "/login", "/signup", "/products", "/cart"]
 const PROTECTED_PAGE_ROUTES = ["/checkout", "/admin"]
 
 function isStaticAsset(path: string): boolean {
@@ -70,6 +70,9 @@ export default withAuth(
         // 2. Public pages — always allow
         if (PUBLIC_PAGE_ROUTES.includes(path)) return true
 
+        // 2b. Product detail pages (/products/<slug>) are public too.
+        if (path.startsWith("/products/")) return true
+
         // 3. Public API routes — always allow
         if (isPublicApi(path)) return true
 
@@ -79,7 +82,10 @@ export default withAuth(
         if (path.startsWith("/api/")) return true
 
         // 5. Protected pages — require session.
-        if (PROTECTED_PAGE_ROUTES.includes(path)) {
+        //    Note: paths starting with "/admin/" or "/checkout" (with sub-routes)
+        //    also require a session.
+        if (path === "/checkout" || path.startsWith("/checkout/") ||
+            path === "/admin" || path.startsWith("/admin/")) {
           return Boolean(token)
         }
 

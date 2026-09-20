@@ -79,6 +79,36 @@ model VerificationToken {
 // App models
 // ---------------------------------------------------------------------------
 
+/// A product in the storefront catalog.
+model Product {
+  id          String   @id @default(cuid())
+  /// URL-safe slug, e.g. "raast-qr-sticker". Unique.
+  slug        String   @unique
+  name        String
+  description String
+  /// Price in paisa (1 PKR = 100 paisa). Avoid float drift.
+  priceMinor  Int
+  currency    String   @default("PKR")
+  /// Optional image URL (external). Empty = use placeholder.
+  imageUrl    String?
+  /// Optional category for filtering, e.g. "Stickers", "Digital", "Services".
+  category    String?
+  /// Inventory count. 0 = out of stock. null = unlimited (digital goods).
+  stock       Int?
+  /// Soft delete + visibility toggle.
+  active      Boolean  @default(true)
+  /// Show on homepage as featured.
+  featured    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orderItems OrderItem[]
+
+  @@index([active, featured])
+  @@index([category])
+  @@index([slug])
+}
+
 /// A single checkout order created on our side before redirecting to Rapid.
 model Order {
   // Our internal order id (also used as merchantTransactionId sent to Rapid)
@@ -113,6 +143,9 @@ model Order {
   userId String?
   user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  // Items in this order (snapshot of product name + price at purchase time).
+  items OrderItem[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -121,6 +154,28 @@ model Order {
   @@index([status])
   @@index([createdAt])
   @@index([userId])
+}
+
+/// Snapshot of a product at the time of purchase.
+/// We store name + price here (not just productId) so that if a product is
+/// later edited or deleted, the historical order still shows the correct
+/// name and price the customer paid.
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  /// Snapshot of product name at purchase time.
+  name      String
+  /// Snapshot of unit price at purchase time (paisa).
+  priceMinor Int
+  quantity  Int
+  /// Snapshot of image URL at purchase time (optional).
+  imageUrl  String?
+
+  @@index([orderId])
+  @@index([productId])
 }
 
 /// Every webhook delivery we successfully verify is persisted here.
