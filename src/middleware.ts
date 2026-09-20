@@ -13,7 +13,7 @@
  *   - All other /api/* routes → return 401 JSON (NOT a redirect, so fetch() can handle it)
  *   - All other pages → redirect to /login?callbackUrl=<original path + query>
  *
- * 404 (unknown routes) → NOT redirected; Next.js renders its default 404 page.
+ * 404 (unknown routes): middleware allows them through; Next.js renders not-found.tsx.
  */
 
 import { withAuth } from "next-auth/middleware"
@@ -33,6 +33,11 @@ const PUBLIC_API_PATHS = [
   "/api/rapid/return",
   "/api/rapid/config",
 ]
+
+// Known page routes that EXIST in the app. Anything NOT in this list and NOT
+// a public/api/static path is treated as a 404 → middleware lets it through
+// so Next.js can render not-found.tsx instead of redirecting to /login.
+const KNOWN_PAGE_ROUTES = ["/", "/login"]
 
 function isStaticAsset(path: string): boolean {
   return STATIC_ASSETS.some((p) => path === p || path.startsWith(p))
@@ -61,13 +66,16 @@ export default withAuth(
         // 3. Public API routes (NextAuth + Rapid webhook/return/config) — always allow
         if (isPublicApi(path)) return true
 
-        // 4. Other API routes — if no session, the route handler will return 401 JSON.
-        //    We allow the request through so the handler can respond cleanly (not a redirect).
-        //    Returning false here would cause a redirect to /login which is wrong for fetch().
+        // 4. Other API routes — let the route handler return 401 JSON itself.
+        //    (We don't redirect API routes because fetch() can't follow redirects
+        //    to an HTML login page — it just gets the HTML and breaks.)
         if (path.startsWith("/api/")) return true
 
-        // 5. All other routes (pages) — require session.
-        //    If unauthorized, withAuth will redirect to /login?callbackUrl=<original>
+        // 5. Unknown non-API, non-static path → 404. Let it through so Next.js
+        //    renders not-found.tsx (don't redirect to /login — that's confusing).
+        if (!KNOWN_PAGE_ROUTES.includes(path)) return true
+
+        // 6. Known page routes (just "/") — require session.
         return Boolean(token)
       },
     },
@@ -78,3 +86,4 @@ export const config = {
   // Run middleware on all routes except pure static asset prefixes.
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 }
+
