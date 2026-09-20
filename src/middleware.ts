@@ -1,17 +1,23 @@
 /**
  * Server-side auth gate.
  *
- * PUBLIC paths (no session required):
- *   - /login
- *   - /api/auth/*          (NextAuth routes — must be public)
- *   - /api/rapid/webhook   (Rapid signs its own requests — auth via HMAC, not session)
- *   - /api/rapid/return    (customer redirect URL from Rapid — no session)
- *   - /api/rapid/config    (public read-only config status)
- *   - /_next/*, /favicon.ico, /logo.svg, /robots.txt  (static assets)
+ * PUBLIC pages (no session required, indexable by search engines):
+ *   - /                  (storefront)
+ *   - /login             (sign-in page)
+ *   - /signup            (sign-up page)
  *
- * PROTECTED paths (require session):
- *   - All other /api/* routes → return 401 JSON (NOT a redirect, so fetch() can handle it)
- *   - All other pages → redirect to /login?callbackUrl=<original path + query>
+ * PROTECTED pages (session required):
+ *   - /checkout          (the Rapid checkout form)
+ *   - /admin             (admin dashboard — also requires role=admin, enforced in route handlers)
+ *
+ * PUBLIC API routes:
+ *   - /api/auth/*        (NextAuth routes)
+ *   - /api/rapid/webhook (HMAC-signed by Rapid)
+ *   - /api/rapid/return  (customer redirect from Rapid)
+ *   - /api/rapid/config  (public read-only config status)
+ *
+ * PROTECTED API routes — handlers return 401/403 JSON themselves:
+ *   - All other /api/* routes (including /api/admin/*, /api/rapid/orders, etc.)
  *
  * 404 (unknown routes): middleware allows them through; Next.js renders not-found.tsx.
  */
@@ -37,7 +43,8 @@ const PUBLIC_API_PATHS = [
 // Known page routes that EXIST in the app. Anything NOT in this list and NOT
 // a public/api/static path is treated as a 404 → middleware lets it through
 // so Next.js can render not-found.tsx instead of redirecting to /login.
-const KNOWN_PAGE_ROUTES = ["/", "/login"]
+const PUBLIC_PAGE_ROUTES = ["/", "/login", "/signup"]
+const PROTECTED_PAGE_ROUTES = ["/checkout", "/admin"]
 
 function isStaticAsset(path: string): boolean {
   return STATIC_ASSETS.some((p) => path === p || path.startsWith(p))
@@ -60,23 +67,25 @@ export default withAuth(
         // 1. Static assets — always allow
         if (isStaticAsset(path)) return true
 
-        // 2. /login page itself — always allow (so user can sign in)
-        if (path === "/login") return true
+        // 2. Public pages — always allow
+        if (PUBLIC_PAGE_ROUTES.includes(path)) return true
 
-        // 3. Public API routes (NextAuth + Rapid webhook/return/config) — always allow
+        // 3. Public API routes — always allow
         if (isPublicApi(path)) return true
 
-        // 4. Other API routes — let the route handler return 401 JSON itself.
+        // 4. Other API routes — let the route handler return 401/403 JSON itself.
         //    (We don't redirect API routes because fetch() can't follow redirects
         //    to an HTML login page — it just gets the HTML and breaks.)
         if (path.startsWith("/api/")) return true
 
-        // 5. Unknown non-API, non-static path → 404. Let it through so Next.js
-        //    renders not-found.tsx (don't redirect to /login — that's confusing).
-        if (!KNOWN_PAGE_ROUTES.includes(path)) return true
+        // 5. Protected pages — require session.
+        if (PROTECTED_PAGE_ROUTES.includes(path)) {
+          return Boolean(token)
+        }
 
-        // 6. Known page routes (just "/") — require session.
-        return Boolean(token)
+        // 6. Unknown non-API, non-static path → 404. Let it through so Next.js
+        //    renders not-found.tsx (don't redirect to /login — that's confusing).
+        return true
       },
     },
   },
@@ -86,4 +95,3 @@ export const config = {
   // Run middleware on all routes except pure static asset prefixes.
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 }
-

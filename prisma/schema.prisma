@@ -25,6 +25,8 @@ model User {
   image         String?
   // OAuth provider that created this account (google | facebook)
   provider      String?
+  // Role: "user" (default) or "admin". Admins can access /admin and see all orders.
+  role          String    @default("user")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

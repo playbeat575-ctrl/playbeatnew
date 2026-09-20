@@ -27,6 +27,8 @@ export async function GET() {
       provider: session.user.provider ?? null,
       // @ts-expect-error
       id: session.user.id ?? null,
+      // @ts-expect-error
+      role: session.user.role ?? "user",
     },
   })
 }

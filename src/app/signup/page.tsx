@@ -4,6 +4,7 @@ import { useState, Suspense } from "react"
 import { signIn } from "next-auth/react"
 import { Loader2, ShieldCheck, AlertCircle, X, ArrowLeft } from "lucide-react"
 import { useSearchParams } from "next/navigation"
+import Link from "next/link"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -28,7 +29,7 @@ const ERROR_MESSAGES: Record<string, { title: string; body: string }> = {
     body: "The provider didn't respond. Please try again in a moment.",
   },
   OAuthCallback: {
-    title: "Sign-in failed",
+    title: "Sign-up failed",
     body: "The provider rejected the sign-in. This usually means the OAuth client ID or secret is incorrect, or the callback URL isn't registered in the provider's console.",
   },
   OAuthCreateAccount: {
@@ -44,20 +45,20 @@ const ERROR_MESSAGES: Record<string, { title: string; body: string }> = {
     body: "Something went wrong during the sign-in callback. Please try again.",
   },
   google: {
-    title: "Google sign-in failed",
+    title: "Google sign-up failed",
     body: "Google rejected the sign-in. The site admin may need to register https://playbeat.digital/api/auth/callback/google in the Google Cloud Console.",
   },
   facebook: {
-    title: "Facebook sign-in failed",
+    title: "Facebook sign-up failed",
     body: "Facebook rejected the sign-in. The site admin may need to register https://playbeat.digital/api/auth/callback/facebook in the Meta for Developers console.",
   },
   default: {
-    title: "Sign-in failed",
+    title: "Sign-up failed",
     body: "Something went wrong. Please try again, or contact support if the problem persists.",
   },
 }
 
-function LoginButtons() {
+function SignupButtons() {
   const searchParams = useSearchParams()
   const callbackUrl = (() => {
     const url = searchParams.get("callbackUrl")
@@ -86,9 +87,9 @@ function LoginButtons() {
         <Card className="w-full max-w-md shadow-lg">
           <CardHeader className="text-center">
             <div className="mx-auto h-12 w-12 rounded-md bg-[#007cdc] text-white grid place-items-center font-bold text-lg mb-2">RG</div>
-            <CardTitle className="text-2xl">Sign in to PlayBeat</CardTitle>
+            <CardTitle className="text-2xl">Create your PlayBeat account</CardTitle>
             <CardDescription>
-              Continue with Google or Facebook to access Rapid Gateway checkout.
+              Continue with Google or Facebook to start accepting payments.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -140,20 +141,20 @@ function LoginButtons() {
 
             <div className="pt-2 text-center text-[11px] text-slate-500 flex items-center justify-center gap-1.5">
               <ShieldCheck className="h-3 w-3" />
-              No sign-up form. We use your real Google / Facebook identity only.
+              No password to remember. We use your real Google / Facebook identity only.
             </div>
 
             <div className="pt-3 border-t text-center text-xs text-slate-600">
-              Don&apos;t have an account?{" "}
-              <a href="/signup" className="text-[#007cdc] hover:underline font-medium">
-                Sign up
-              </a>
+              Already have an account?{" "}
+              <Link href="/login" className="text-[#007cdc] hover:underline font-medium">
+                Sign in
+              </Link>
             </div>
 
-            <a href="/" className="block text-center text-[11px] text-slate-400 hover:text-slate-600 mt-2">
+            <Link href="/" className="block text-center text-[11px] text-slate-400 hover:text-slate-600 mt-2">
               <ArrowLeft className="h-3 w-3 inline mr-1" />
               Back to home
-            </a>
+            </Link>
           </CardContent>
         </Card>
       </main>
@@ -167,10 +168,10 @@ function LoginButtons() {
   )
 }
 
-export default function LoginPage() {
+export default function SignupPage() {
   return (
     <Suspense fallback={null}>
-      <LoginButtons />
+      <SignupButtons />
     </Suspense>
   )
 }
