@@ -1,0 +1,91 @@
+// Prisma schema for Rapid Payment Gateway integration
+// Docs: https://rapidgateway.pk/resources/payment-webhooks-guide
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // PostgreSQL is required for Vercel/serverless deploys — SQLite's file-based
+  // storage does not survive across serverless function invocations.
+  // Recommended free tiers: Vercel Postgres, Neon, Supabase.
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  title     String
+  content   String?
+  published Boolean  @default(false)
+  authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// A single checkout order created on our side before redirecting to Rapid.
+model Order {
+  // Our internal order id (also used as merchantTransactionId sent to Rapid)
+  id String @id @default(cuid())
+
+  // The merchantTransactionId we send to Rapid. We prefix the internal id so
+  // it is human-readable in the Rapid portal ("ORDER-<short>").
+  merchantTransactionId String @unique
+
+  // PKR by default; store as integer minor units (paisa) to avoid float bugs.
+  // 100.00 PKR = 10000 paisa.
+  amountMinor  Int
+  currency     String  @default("PKR")
+
+  // Customer details captured at checkout time.
+  customerEmail   String
+  customerName    String?
+  customerPhone   String?
+  description     String?
+
+  // Lifecycle: PENDING -> SUCCESS | FAILED | REFUNDED
+  status      String  @default("PENDING")
+  environment String  @default("SANDBOX")
+
+  // Set by Rapid on success/failure.
+  gatewayTxnRef String?
+
+  // Raw redirect query string Rapid sent back to our return URL (for debugging).
+  redirectPayload String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  webhookEvents WebhookEvent[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+/// Every webhook delivery we successfully verify is persisted here.
+/// The same eventId may arrive more than once — we de-dupe on it.
+model WebhookEvent {
+  id        String   @id @default(cuid())
+  eventId   String   @unique // X-RapidGateway-Delivery / payload.eventId
+  eventType String             // transaction.completed, refund.failed, ...
+  rawBody   String             // exact bytes we received (for audit)
+  signature String             // X-RapidGateway-Signature we verified against
+  timestamp String             // X-RapidGateway-Timestamp
+
+  // Optional link to the order this event pertains to (matched by merchantTransactionId).
+  orderId   String?
+  order     Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  processedAt DateTime @default(now())
+
+  @@index([eventType])
+  @@index([processedAt])
+}
