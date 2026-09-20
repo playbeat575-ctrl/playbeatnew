@@ -12,6 +12,8 @@ import { db } from "@/lib/db";
 import { rapidConfig, rapidOutboundReady, assertRapidConfigured } from "@/lib/rapid/config";
 import { createHostedCheckout } from "@/lib/rapid/client";
 import { decimalToMinor } from "@/lib/rapid/money";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,6 +28,15 @@ interface CreateSessionBody {
 }
 
 export async function POST(req: Request) {
+  // Require an authenticated session — no anonymous checkouts.
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) {
+    return NextResponse.json(
+      { ok: false, error: "You must be signed in to create a checkout session." },
+      { status: 401 },
+    );
+  }
+
   if (!rapidOutboundReady()) {
     return NextResponse.json(
       {
@@ -59,6 +70,12 @@ export async function POST(req: Request) {
   const currency = (body.currency ?? "PKR").toUpperCase();
   const amountMinor = decimalToMinor(amount, currency);
 
+  // Resolve the authenticated user row so we can link the order to them.
+  const user = await db.user.findUnique({
+    where: { email: session.user.email },
+    select: { id: true },
+  });
+
   // Create the order first — guarantees a merchantTransactionId even if Rapid is slow.
   const order = await db.order.create({
     data: {
@@ -71,6 +88,7 @@ export async function POST(req: Request) {
       description: body.description?.trim() || null,
       status: "PENDING",
       environment: rapidConfig.environment.toUpperCase(),
+      userId: user?.id ?? null,
     },
   });
 

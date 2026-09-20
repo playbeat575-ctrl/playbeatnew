@@ -8,28 +8,74 @@ generator client {
 datasource db {
   // PostgreSQL is required for Vercel/serverless deploys — SQLite's file-based
   // storage does not survive across serverless function invocations.
-  // Recommended free tiers: Vercel Postgres, Neon, Supabase.
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+// ---------------------------------------------------------------------------
+// NextAuth.js models (Prisma Adapter — required for Google + Facebook OAuth)
+// Spec: https://next-auth.js.org/adapters/prisma
+// ---------------------------------------------------------------------------
+
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  // OAuth provider that created this account (google | facebook)
+  provider      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts Account[]
+  sessions Session[]
+  orders   Order[]
 }
 
-model Post {
-  id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Account {
+  // Compound id is required by NextAuth's Prisma adapter.
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
 }
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// App models
+// ---------------------------------------------------------------------------
 
 /// A single checkout order created on our side before redirecting to Rapid.
 model Order {
@@ -61,6 +107,10 @@ model Order {
   // Raw redirect query string Rapid sent back to our return URL (for debugging).
   redirectPayload String?
 
+  // The authenticated user who created this order.
+  userId String?
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -68,6 +118,7 @@ model Order {
 
   @@index([status])
   @@index([createdAt])
+  @@index([userId])
 }
 
 /// Every webhook delivery we successfully verify is persisted here.

@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Loader2, CreditCard, Shield, CheckCircle2, XCircle, Clock, RefreshCw, ExternalLink } from "lucide-react"
+import { Loader2, CreditCard, Shield, CheckCircle2, XCircle, Clock, RefreshCw, ExternalLink, LogOut } from "lucide-react"
+import { signOut } from "next-auth/react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,6 +16,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Toaster as Sonner } from "@/components/ui/sonner"
 import { toast } from "sonner"
+import { AuthGate, type AuthUser } from "@/components/auth-gate"
 
 // ------------------------------------------------------------------
 // Types & helpers
@@ -78,7 +80,7 @@ type CheckoutForm = z.infer<typeof checkoutSchema>
 // Page
 // ------------------------------------------------------------------
 
-export default function Home() {
+function Checkout({ user }: { user: AuthUser }) {
   const [orders, setOrders] = useState<OrderRow[]>([])
   const [loadingOrders, setLoadingOrders] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -86,7 +88,13 @@ export default function Home() {
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<CheckoutForm>({
     resolver: zodResolver(checkoutSchema),
-    defaultValues: { amount: 100, email: "", name: "", phone: "", description: "" },
+    defaultValues: {
+      amount: 100,
+      email: user.email ?? "",
+      name: user.name ?? "",
+      phone: "",
+      description: "",
+    },
   })
 
   // Load recent orders + config status
@@ -191,16 +199,40 @@ export default function Home() {
               <p className="text-xs text-slate-500 leading-tight">Playbeat Digital · Next.js integration</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {/* Logged-in user info */}
+            <div className="flex items-center gap-2">
+              {user.image ? (
+                <img src={user.image} alt={user.name ?? "avatar"} className="h-7 w-7 rounded-full border" />
+              ) : (
+                <div className="h-7 w-7 rounded-full bg-slate-200 grid place-items-center text-xs font-semibold text-slate-600">
+                  {(user.name ?? user.email ?? "?").charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div className="hidden sm:block leading-tight">
+                <div className="text-xs font-medium text-slate-900">{user.name ?? "Signed in"}</div>
+                <div className="text-[10px] text-slate-500">{user.provider ? `via ${user.provider}` : user.email}</div>
+              </div>
+            </div>
             <Badge variant="outline" className={envBadge.className}>{envBadge.label}</Badge>
             <a
               href="https://rapidgateway.pk/resources/payment-webhooks-guide"
               target="_blank"
               rel="noreferrer"
-              className="text-xs text-slate-500 hover:text-slate-900 inline-flex items-center gap-1"
+              className="hidden md:inline text-xs text-slate-500 hover:text-slate-900 items-center gap-1"
             >
               Webhook docs <ExternalLink className="h-3 w-3" />
             </a>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              title="Sign out"
+              className="text-xs h-8"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline ml-1.5">Sign out</span>
+            </Button>
           </div>
         </div>
       </header>
@@ -381,5 +413,13 @@ RAPID_GATEWAY_APP_BASE_URL=http://localhost:3000`}
         </div>
       </footer>
     </div>
+  )
+}
+
+export default function Home() {
+  return (
+    <AuthGate>
+      {(user) => <Checkout user={user} />}
+    </AuthGate>
   )
 }
