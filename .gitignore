@@ -62,3 +62,4 @@ server.log
 /db/*.db
 /db/*.db-journal
 /download/
+/upload/
